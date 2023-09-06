@@ -176,7 +176,8 @@ class Transformer(nn.Module):
         self.decoder = decoder
         self.src_embed = src_embed
         self.tgt_emb = tgt_emb
-        self.pos = pos
+        self.src_pos = src_pos
+        self.tgt_pos = tgt_pos
         self.proj = proj
 
     def encode(self, src, src_mask):
@@ -217,7 +218,7 @@ def build_transformer(src_vocab_size, tgt_vocab_size, src_seq_len, tgt_seq_len, 
     for p in transformer.parameters():
         if p.dim() > 1:
             nn.init.xavier_uniform_(p)
-            
+
     return transformer
 
 
