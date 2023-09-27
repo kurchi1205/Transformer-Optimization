@@ -224,6 +224,4 @@ def build_transformer(src_vocab_size, tgt_vocab_size, src_seq_len, tgt_seq_len, 
 
 
 
-
-
     
