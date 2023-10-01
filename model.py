@@ -29,12 +29,13 @@ class FeedForwardBlock(nn.Module):
 
 class InputEmbeddings(nn.Embedding):
     def __init__(self, vocab_size: int, d_model: int) -> None:
-        super().__init__()
+        super().__init__(vocab_size, d_model)
         self.d_model = d_model
         self.vocab_size = vocab_size
         self.embedding = nn.Embedding(vocab_size, d_model)
 
     def forward(self, x):
+        x = x.to(torch.int64)
         return self.embedding(x) * math.sqrt(self.d_model)
     
 class PositionalEncoding(nn.Module):
@@ -53,9 +54,11 @@ class PositionalEncoding(nn.Module):
 
         pe = pe.unsqueeze(0)
         self.register_buffer('pe', pe)
+        self.pe = pe
 
     def forward(self, x):
-        x = x + self.pe[:, :x.shape[1], :].requires_grad(False)
+        self.pe[:, :x.shape[1], :].requires_grad = False
+        x = x + self.pe
         return self.dropout(x)
     
 class ResidualConnection(nn.Module):
@@ -144,9 +147,9 @@ class DecoderBlock(nn.Module):
         self.residual_connections = nn.ModuleList([ResidualConnection(dropout) for _ in range(3)])
 
     def forward(self, x, src_mask, tgt_mask, encoder_output):
-        x = self.residual_connections[0](x, self.self_attention_block(x, x, x, tgt_mask))
-        x = self.residual_connections[1](x, lambda x: self.cross_attention_block(x, encoder_output, encoder_output, src_mask))
-        x = self.residual_connections[2](x, self.feed_forward_block(x))
+        x = x + self.self_attention_block(x, x, x, tgt_mask)
+        x = x + self.cross_attention_block(x, encoder_output, encoder_output, src_mask)
+        x = self.residual_connections[2](x, self.feed_forward_block)
         return x
     
 class Decoder(nn.Module):
@@ -181,10 +184,10 @@ class Transformer(nn.Module):
         self.proj = proj
 
     def encode(self, src, src_mask):
-        return self.encoder(self.pos(self.src_embed(src)), src_mask)
+        return self.encoder(self.src_pos(self.src_embed(src)), src_mask)
     
     def decode(self, tgt, encoder_output, src_mask, tgt_mask):
-        return self.decoder(self.pos(self.tgt_emb(tgt)), src_mask, tgt_mask, encoder_output)
+        return self.decoder(self.tgt_pos(self.tgt_emb(tgt)), src_mask, tgt_mask, encoder_output)
     
     def project(self, x):
         return self.proj(x)

@@ -8,11 +8,13 @@ def get_config():
         "lr": 1e-4,
         "seq_len": 350,
         "d_model": 512,
+        "N": 6,
+        "head": 8, 
         "lang_src": "en",
         "lang_tgt": "it",
         "model_folder": "weights",
         "model_basename": "tmodel_",
-        "preload": "True",
+        "preload": None,
         "tokanizer_file": "tokenizer_{0}.json",
         "experiment_name": "transformer_opt"
     }

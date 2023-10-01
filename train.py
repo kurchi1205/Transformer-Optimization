@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import lr_scheduler
-from torchtext.datasets import datasets
+# from torchtext.datasets import datasets
 
 import warnings
 from tqdm import tqdm
@@ -69,7 +69,7 @@ def get_ds(config):
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["lang_src"])
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config["lang_tgt"])
 
-    train_ds_size = 0.9 * len(ds_raw)
+    train_ds_size = int(0.9 * len(ds_raw))
     val_ds_size = len(ds_raw) - train_ds_size
     train_ds_raw, val_ds_raw = torch.utils.data.random_split(ds_raw, [train_ds_size, val_ds_size])
 
@@ -140,11 +140,12 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
 
 
 def train_model(config):
+    print("config used: ", config)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print("Using device: ", device)
     Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
     train_loader, val_loader, tokenizer_src, tokenizer_tgt = get_ds(config)
-    model = get_model(config, tokenizer_src.get_vocal_size, tokenizer_tgt.get_vocal_size)
+    model = get_model(config, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
     # writer = SummaryWriter(config["experiment_name"])
     optimizer = torch.optim.Adam(model.parameters(), lr=config['lr'], eps=1e-9)
 
@@ -160,8 +161,9 @@ def train_model(config):
         optimizer.load_state_dict(state_dict)
         global_step = state_dict['global_step'] + 1
         print("Model preloaded")
-
-    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.get_token_id('[PAD]'), label_smoothing=0.1)
+    
+    model = model.to(device)
+    loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1)
 
     for epoch in range(initial_epoch, config["num_epochs"]):
         torch.cuda.empty_cache()
@@ -174,16 +176,16 @@ def train_model(config):
             tgt_mask = batch["tgt_mask"].to(device)
 
             encoder_output = model.encode(src_input, src_mask)
-            decoder_output = model.decode(encoder_output, src_mask, tgt_input, tgt_mask)
+            decoder_output = model.decode(tgt_input, encoder_output, src_mask, tgt_mask)
             proj_output = model.project(decoder_output)
 
             label = batch["label"].to(device)
             loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
-            batch_iterator.set_postfix("Loss at {epoch}: {loss.item()}")
+            batch_iterator.set_postfix({f"Loss at {epoch}": {loss.item()}})
             loss.backward()
 
             optimizer.step()
-            optimizer.zero_grad(set_to_None=True)
+            optimizer.zero_grad(set_to_none=True)
             global_step+=1
 
         run_validation(model, val_loader, tokenizer_tgt, config['seq_len'], device, None, None)

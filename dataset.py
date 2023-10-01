@@ -26,8 +26,8 @@ class BilingualDataset(Dataset):
         src = src_tgt_pair["translation"][self.src_lang]
         tgt = src_tgt_pair["translation"][self.tgt_lang]
 
-        src_tokens = self.src_tokenizer.encode(src).input_ids
-        tgt_tokens = self.tgt_tokenizer.encode(tgt).input_ids
+        src_tokens = self.src_tokenizer.encode(src).ids
+        tgt_tokens = self.tgt_tokenizer.encode(tgt).ids
 
         src_padding_tokens = self.seq_len - len(src_tokens) - 2
         tgt_padding_tokens = self.seq_len - len(tgt_tokens) - 1
@@ -71,7 +71,7 @@ class BilingualDataset(Dataset):
             "src_input": src_input,
             "tgt_input": tgt_input,
             "src_mask": (src_input != self.pad_token).unsqueeze(0).unsqueeze(0).int(),
-            "tgt_mask": (tgt_input != self.pad_token).unsqueeze(0) & (causal_mask(tgt.size(0)).int()),
+            "tgt_mask": (tgt_input != self.pad_token).unsqueeze(0) & (causal_mask(tgt_input.size(0)).int()),
             "label": label,
             "src_text": src,
             "tgt_text": tgt
