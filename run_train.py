@@ -8,4 +8,6 @@ def run_train():
 
     train_model(cfg)
     
+if __name__ == '__main__':
+    run_train()
 
