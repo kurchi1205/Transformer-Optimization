@@ -36,7 +36,7 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
         if (decoder_input.size(1) == max_len):
             break
 
-        decoder_output = model.decode(encoder_output, source_mask, decoder_input, causal_mask(decoder_input.size(1)).type_as(source_mask).to(device))
+        decoder_output = model.decode(decoder_input, source_mask, causal_mask(decoder_input.size(1)).type_as(source_mask).to(device), encoder_output)
         prob = model.project(decoder_output[:, -1])
         _, next_token = torch.max(prob, dim=-1)
         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_token.item())], dim=1)
@@ -108,6 +108,8 @@ class CustomLightningModule(pl.LightningModule):
         self.model = model
         self.tokenizer_src = tokenizer_src
         self.tokenizer_tgt = tokenizer_tgt
+        self.expected_tgt = []
+        self.predicted_tgt = []
         # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         # Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
         # self.train_loader, self.val_loader, self.tokenizer_src, self.tokenizer_tgt = get_ds(config)
@@ -158,4 +160,20 @@ class CustomLightningModule(pl.LightningModule):
         source_text = batch['src_text'][0]
         target_text = batch['tgt_text'][0]
         model_out_text = self.tokenizer_tgt.decode(model_out.detach().cpu().numpy())
-        
+        self.expected_tgt.append(target_text)
+        self.predicted_tgt.append(model_out_text)
+
+
+    def validation_on_epoch_end(self):
+        cer = self.cer_metric(self.predicted_tgt, self.expected_tgt)
+        wer = self.wer_metric(self.predicted_tgt, self.expected_tgt)
+        bleu = self.bleu_metric(self.predicted_tgt, self.expected_tgt)
+
+        self.predicted_tgt.clear()
+        self.expected_tgt.clear()
+
+        self.log("CER loss: ", cer)
+        self.log("WER loss: ", wer)
+        self.log("BLEU loss: ", bleu)
+
+
