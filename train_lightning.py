@@ -110,22 +110,7 @@ class CustomLightningModule(pl.LightningModule):
         self.tokenizer_tgt = tokenizer_tgt
         self.expected_tgt = []
         self.predicted_tgt = []
-        # self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        # Path(config['model_folder']).mkdir(parents=True, exist_ok=True)
-        # self.train_loader, self.val_loader, self.tokenizer_src, self.tokenizer_tgt = get_ds(config)
-        # self.model = get_model(config, self.tokenizer_src.get_vocab_size(), self.tokenizer_tgt.get_vocab_size())
-
-        # if config["preload"]:
-        #     model_filename = get_weight_file_path(config, config["preload"])
-        #     print("Preloading model ", model_filename)
-        #     state_dict = torch.load(model_filename)
-        #     self.model.load_state_dict(state_dict)
-        #     self.initial_epoch = state_dict['epoch'] + 1
-        #     # self.optimizer.load_state_dict(state_dict) 
-        #     self.global_step = state_dict['global_step'] + 1
-        #     print("Model preloaded")
-    
-        # model = model
+        self.save_hyperparameters()
         self.loss_fn = nn.CrossEntropyLoss(ignore_index=self.tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1)
 
 
@@ -177,3 +162,6 @@ class CustomLightningModule(pl.LightningModule):
         self.log("BLEU loss: ", bleu)
 
 
+    def configure_optimizers(self):
+        optimizer = torch.optim.Adam(self.model.parameters(), lr=self.config['lr'], eps=1e-9)
+        return optimizer
