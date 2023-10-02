@@ -58,7 +58,7 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
         self.pe[:, :x.shape[1], :].requires_grad = False
-        x = x + self.pe
+        x = x + self.pe[:, :x.shape[1], :]
         return self.dropout(x)
     
 class ResidualConnection(nn.Module):

@@ -1,3 +1,5 @@
 torchmetrics
 datasets
 tokenizers
+pytorch_lightning
+wandb

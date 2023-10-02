@@ -36,7 +36,7 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
         if (decoder_input.size(1) == max_len):
             break
 
-        decoder_output = model.decode(decoder_input, source_mask, causal_mask(decoder_input.size(1)).type_as(source_mask).to(device), encoder_output)
+        decoder_output = model.decode(decoder_input, encoder_output, source_mask, causal_mask(decoder_input.size(1)).type_as(source_mask).to(device))
         prob = model.project(decoder_output[:, -1])
         _, next_token = torch.max(prob, dim=-1)
         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_token.item())], dim=1)
@@ -157,9 +157,9 @@ class CustomLightningModule(pl.LightningModule):
         self.predicted_tgt.clear()
         self.expected_tgt.clear()
 
-        self.log("CER loss: ", cer)
-        self.log("WER loss: ", wer)
-        self.log("BLEU loss: ", bleu)
+        self.log("CER_loss: ", cer)
+        self.log("WER_loss: ", wer)
+        self.log("BLEU_loss: ", bleu)
 
 
     def configure_optimizers(self):
