@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
+import numpy as np
 
 
 class BilingualDataset(Dataset):
@@ -31,10 +32,10 @@ class BilingualDataset(Dataset):
             src_tokens = self.src_tokenizer.encode(src).ids
             tgt_tokens = self.tgt_tokenizer.encode(tgt).ids
 
-            if (src_tokens > 150):
-                self.ds.remove(i)
-            if (tgt_tokens - src_tokens > 10):
-                self.ds.remove(i)
+            if (len(src_tokens) > 150):
+                np.delete(self.ds, i, axis=0)
+            if (len(tgt_tokens) - len(src_tokens) > 10):
+                np.delete(self.ds, i, axis=0)
     
             
     def __getitem__(self, idx):

@@ -66,8 +66,8 @@ def get_or_build_tokenizer(config, ds, lang):
 
 
 def collate_fn(batch):
-    max_src_seq_length = max([x["src_seq_len"] for x in batch])
-    max_tgt_seq_length = max([x["tgt_seq_len"] for x in batch])
+    max_src_seq_length = max([x["src_seq_length"] for x in batch])
+    max_tgt_seq_length = max([x["tgt_seq_length"] for x in batch])
     src_inputs = []
     tgt_inputs = []
     src_masks = []
@@ -147,7 +147,9 @@ class CustomLightningModule(pl.LightningModule):
         self.predicted_tgt = []
         self.save_hyperparameters()
         self.loss_fn = nn.CrossEntropyLoss(ignore_index=self.tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1)
-
+        self.cer_metric = torchmetrics.CharErrorRate()
+        self.wer_metric = torchmetrics.WordErrorRate()
+        self.bleu_metric = torchmetrics.BLEUScore()
 
     def forward(self, src_input, src_mask, tgt_input, tgt_mask):
         encoder_output = self.model.encode(src_input, src_mask)
@@ -191,9 +193,9 @@ class CustomLightningModule(pl.LightningModule):
         wer = self.wer_metric(predicted_tgt, expected_tgt)
         bleu = self.bleu_metric(predicted_tgt, expected_tgt)
 
-        self.log("CER_loss: ", cer)
-        self.log("WER_loss: ", wer)
-        self.log("BLEU_loss: ", bleu)
+        self.log("val_CER_loss: ", cer)
+        self.log("val_WER_loss: ", wer)
+        self.log("val_BLEU_loss: ", bleu)
 
 
     def validation_on_epoch_end(self):

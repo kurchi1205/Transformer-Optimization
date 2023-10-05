@@ -11,7 +11,7 @@ def get_config():
         "N": 6,
         "head": 8, 
         "lang_src": "en",
-        "lang_tgt": "it",
+        "lang_tgt": "fr",
         "model_folder": "weights",
         "model_basename": "tmodel_",
         "preload": None,

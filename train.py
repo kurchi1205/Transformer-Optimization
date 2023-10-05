@@ -65,8 +65,8 @@ def get_or_build_tokenizer(config, ds, lang):
 
 
 def collate_fn(batch):
-    max_src_seq_length = max([x["src_seq_len"] for x in batch])
-    max_tgt_seq_length = max([x["tgt_seq_len"] for x in batch])
+    max_src_seq_length = max([x["src_seq_length"] for x in batch])
+    max_tgt_seq_length = max([x["tgt_seq_length"] for x in batch])
     src_inputs = []
     tgt_inputs = []
     src_masks = []

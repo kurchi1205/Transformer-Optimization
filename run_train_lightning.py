@@ -12,8 +12,8 @@ def run_train():
     cfg['num_epochs'] = 1
     cfg['dropout'] = 0.2
     cfg['d_ff'] = 2048
-    cfg['clean_data'] = False
-    cfg['use_mixed_precision'] = False
+    cfg['clean_data'] = True
+    cfg['use_mixed_precision'] = True
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(cfg)
     model = get_model(cfg, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
     lightning_model = CustomLightningModule(cfg, model, tokenizer_src, tokenizer_tgt)
