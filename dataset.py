@@ -20,7 +20,23 @@ class BilingualDataset(Dataset):
 
     def __len__(self):
         return len(self.ds)
+    
 
+    def clean_data(self):
+        for i in range(len(self.ds)):
+            src_tgt_pair = self.ds[i]
+            src = src_tgt_pair["translation"][self.src_lang]
+            tgt = src_tgt_pair["translation"][self.tgt_lang]
+
+            src_tokens = self.src_tokenizer.encode(src).ids
+            tgt_tokens = self.tgt_tokenizer.encode(tgt).ids
+
+            if (src_tokens > 150):
+                self.ds.remove(i)
+            if (tgt_tokens - src_tokens > 10):
+                self.ds.remove(i)
+    
+            
     def __getitem__(self, idx):
         src_tgt_pair = self.ds[idx]
         src = src_tgt_pair["translation"][self.src_lang]

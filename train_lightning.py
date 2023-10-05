@@ -108,6 +108,10 @@ def get_ds(config):
     train_ds = BilingualDataset(train_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
     val_ds = BilingualDataset(val_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
     
+    if config["clean_data"]:
+        train_ds.clean_data()
+        val_ds.clean_data()
+
     max_len_src = 0
     max_len_tgt = 0
 
