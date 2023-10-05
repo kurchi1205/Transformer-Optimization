@@ -74,7 +74,9 @@ class BilingualDataset(Dataset):
             "tgt_mask": (tgt_input != self.pad_token).unsqueeze(0) & (causal_mask(tgt_input.size(0)).int()),
             "label": label,
             "src_text": src,
-            "tgt_text": tgt
+            "tgt_text": tgt,
+            "src_seq_length": len(src_tokens),
+            "tgt_seq_length": len(tgt_tokens)
         }
     
 def causal_mask(size):

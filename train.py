@@ -64,6 +64,37 @@ def get_or_build_tokenizer(config, ds, lang):
     return tokenizer
 
 
+def collate_fn(batch):
+    max_src_seq_length = max([x["src_seq_len"] for x in batch])
+    max_tgt_seq_length = max([x["tgt_seq_len"] for x in batch])
+    src_inputs = []
+    tgt_inputs = []
+    src_masks = []
+    tgt_masks = []
+    src_texts = []
+    tgt_texts = []
+    labels = []
+
+    for item in batch:
+        src_inputs.append(item['src_input'][:max_src_seq_length])
+        tgt_inputs.append(item['tgt_input'][:max_tgt_seq_length])
+        src_masks.append(item['src_mask'][:, :, :max_src_seq_length])
+        tgt_masks.append(item['tgt_mask'][:, :max_tgt_seq_length, :max_tgt_seq_length])
+        labels.append(item['label'][:max_tgt_seq_length])
+        src_texts.append(item['src_text'])
+        tgt_texts.append(item['tgt_text'])
+
+    return {
+        "src_input": torch.vstack(src_inputs),
+        "tgt_input": torch.vstack(tgt_inputs),
+        "src_mask": torch.vstack(src_masks),
+        "tgt_mask": torch.vstack(tgt_masks),
+        "label": torch.vstack(labels),
+        "src_text": src_texts,
+        "tgt_text": tgt_texts
+    }
+
+
 def get_ds(config):
     ds_raw = load_dataset("opus_books", f"{config['lang_src']}-{config['lang_tgt']}", split="train")
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["lang_src"])
@@ -89,8 +120,8 @@ def get_ds(config):
     print(f"max_len_src: {max_len_src}")
     print(f"max_len_tgt: {max_len_tgt}")
 
-    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=4)
-    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True, num_workers=4)
+    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=4, collate_fn=collate_fn)
+    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
 
