@@ -171,6 +171,8 @@ class CustomLightningModule(pl.LightningModule):
     
 
     def validation_step(self, batch, batch_idx):
+        predicted_tgt = []
+        expected_tgt = []
         encoder_input = batch['src_input']
         encoder_mask = batch['src_mask']
         assert (encoder_input.size(0) == 1), "batch size should be 1 for validation"
@@ -182,6 +184,16 @@ class CustomLightningModule(pl.LightningModule):
         model_out_text = self.tokenizer_tgt.decode(model_out.detach().cpu().numpy())
         self.expected_tgt.append(target_text)
         self.predicted_tgt.append(model_out_text)
+        expected_tgt.append(target_text)
+        predicted_tgt.append(model_out_text)
+
+        cer = self.cer_metric(predicted_tgt, expected_tgt)
+        wer = self.wer_metric(predicted_tgt, expected_tgt)
+        bleu = self.bleu_metric(predicted_tgt, expected_tgt)
+
+        self.log("CER_loss: ", cer)
+        self.log("WER_loss: ", wer)
+        self.log("BLEU_loss: ", bleu)
 
 
     def validation_on_epoch_end(self):
