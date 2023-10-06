@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Sampler
 import numpy as np
 
 
@@ -21,21 +21,6 @@ class BilingualDataset(Dataset):
 
     def __len__(self):
         return len(self.ds)
-    
-
-    def clean_data(self):
-        for i in range(len(self.ds)):
-            src_tgt_pair = self.ds[i]
-            src = src_tgt_pair["translation"][self.src_lang]
-            tgt = src_tgt_pair["translation"][self.tgt_lang]
-
-            src_tokens = self.src_tokenizer.encode(src).ids
-            tgt_tokens = self.tgt_tokenizer.encode(tgt).ids
-
-            if (len(src_tokens) > 150):
-                np.delete(self.ds, i, axis=0)
-            if (len(tgt_tokens) - len(src_tokens) > 10):
-                np.delete(self.ds, i, axis=0)
     
             
     def __getitem__(self, idx):
@@ -101,3 +86,23 @@ def causal_mask(size):
     return mask
 
 
+
+class CustomSampler(Sampler):
+    def __init__(self, data):
+        self.data = data
+
+    def __len__(self) -> int:
+        return len(self.data)
+    
+    def remove_idx(self):
+        for i in range(len(self.data)):
+            if (self.data[i]["src_seq_length"] > 150):
+                self.idx.remove(i)
+            if (self.data[i]["tgt_seq_length"] - self.data[i]["src_seq_length"] > 10):
+                self.idx.remove(i)
+
+    def iter(self):
+        self.idx = list(range(len(self.data)))
+        self.remove_idx()
+        return iter(self.idx)
+    

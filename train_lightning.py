@@ -1,5 +1,5 @@
 from model import build_transformer
-from dataset import BilingualDataset, causal_mask
+from dataset import BilingualDataset, causal_mask, CustomSampler
 from config import get_config, get_weight_file_path
 
 import torch
@@ -107,10 +107,12 @@ def get_ds(config):
 
     train_ds = BilingualDataset(train_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
     val_ds = BilingualDataset(val_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
+    tr_sampler = None
+    val_sampler = None
     
     if config["clean_data"]:
-        train_ds.clean_data()
-        val_ds.clean_data()
+        tr_sampler = CustomSampler(train_ds)
+        val_sampler = CustomSampler(val_ds)
 
     max_len_src = 0
     max_len_tgt = 0
@@ -125,8 +127,8 @@ def get_ds(config):
     print(f"max_len_src: {max_len_src}")
     print(f"max_len_tgt: {max_len_tgt}")
 
-    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=4, collate_fn=collate_fn)
-    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn)
+    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=4, collate_fn=collate_fn, sampler=tr_sampler)
+    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn, sampler=val_sampler)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
 
