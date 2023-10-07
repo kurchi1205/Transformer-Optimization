@@ -8,12 +8,12 @@ from train_lightning import CustomLightningModule, get_model, get_ds
 
 def run_train():
     cfg = get_config()
-    cfg['batch_size'] = 8
-    cfg['num_epochs'] = 1
+    cfg['batch_size'] = 64
+    cfg['num_epochs'] = 5
     cfg['dropout'] = 0.2
     cfg['d_ff'] = 2048
     cfg['clean_data'] = True
-    cfg['use_mixed_precision'] = True
+    cfg['use_mixed_precision'] = False
     train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt = get_ds(cfg)
     model = get_model(cfg, tokenizer_src.get_vocab_size(), tokenizer_tgt.get_vocab_size())
     lightning_model = CustomLightningModule(cfg, model, tokenizer_src, tokenizer_tgt)
@@ -24,11 +24,10 @@ def run_train():
         every_n_epochs=1
     )
     if cfg['use_mixed_precision']:
-        trainer = pl.Trainer(accelerator='gpu', max_epochs=cfg['num_epochs'], logger=logger, callbacks=[checkpoint], precision='16-mixed')
+        trainer = pl.Trainer(accelerator='gpu', max_epochs=cfg['num_epochs'], logger=logger, callbacks=[checkpoint], precision=16, limit_val_batches=10)
     else:
-        trainer = pl.Trainer(accelerator='gpu', max_epochs=cfg['num_epochs'], logger=logger, callbacks=[checkpoint])
+        trainer = pl.Trainer(accelerator='gpu', max_epochs=cfg['num_epochs'], logger=logger, callbacks=[checkpoint], limit_val_batches=10)
     trainer.fit(lightning_model, train_dataloader, val_dataloaders=val_dataloader)
-    trainer.validate(lightning_model, dataloaders=val_dataloader)
 
 if __name__ == "__main__":
     run_train()

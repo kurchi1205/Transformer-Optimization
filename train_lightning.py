@@ -1,10 +1,11 @@
 from model import build_transformer
-from dataset import BilingualDataset, causal_mask, CustomSampler
+from dataset import BilingualDataset, causal_mask
 from config import get_config, get_weight_file_path
 
 import torch
 import torch.nn as nn
 import torch.optim as optim
+import random
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import lr_scheduler
 # from torchtext.datasets import datasets
@@ -96,23 +97,23 @@ def collate_fn(batch):
     }
 
 
-def get_ds(config):
+def get_ds(config, sample=None):
     ds_raw = load_dataset("opus_books", f"{config['lang_src']}-{config['lang_tgt']}", split="train")
     tokenizer_src = get_or_build_tokenizer(config, ds_raw, config["lang_src"])
     tokenizer_tgt = get_or_build_tokenizer(config, ds_raw, config["lang_tgt"])
-
+    if sample is not None:
+        ds_raw = ds_raw.shuffle()
+        ds_raw = ds_raw.select(range(sample))
     train_ds_size = int(0.9 * len(ds_raw))
     val_ds_size = len(ds_raw) - train_ds_size
     train_ds_raw, val_ds_raw = torch.utils.data.random_split(ds_raw, [train_ds_size, val_ds_size])
 
     train_ds = BilingualDataset(train_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
     val_ds = BilingualDataset(val_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
-    tr_sampler = None
-    val_sampler = None
     
     if config["clean_data"]:
-        tr_sampler = CustomSampler(train_ds)
-        val_sampler = CustomSampler(val_ds)
+        train_ds.clean_data()
+        val_ds.clean_data()
 
     max_len_src = 0
     max_len_tgt = 0
@@ -124,11 +125,12 @@ def get_ds(config):
         max_len_src = max(max_len_src, len(src_ids))
         max_len_tgt = max(max_len_tgt, len(tgt_ids))
 
+    print("Length of train ds: ", len(train_ds))
     print(f"max_len_src: {max_len_src}")
     print(f"max_len_tgt: {max_len_tgt}")
 
-    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=4, collate_fn=collate_fn, sampler=tr_sampler)
-    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn, sampler=val_sampler)
+    train_dataloader = DataLoader(train_ds, batch_size=config["batch_size"], shuffle=True, num_workers=4, collate_fn=collate_fn)
+    val_dataloader = DataLoader(val_ds, batch_size=1, shuffle=True, num_workers=4, collate_fn=collate_fn)
 
     return train_dataloader, val_dataloader, tokenizer_src, tokenizer_tgt
 
