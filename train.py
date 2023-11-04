@@ -52,7 +52,7 @@ def get_all_sentences(ds, lang):
 
 
 def get_or_build_tokenizer(config, ds, lang):
-    tokenizer_file = Path(config["tokanizer_file"].format(lang))
+    tokenizer_file = Path(config["tokenizer_file"].format(lang))
     if (tokenizer_file.exists()):
         tokenizer = Tokenizer.from_file(str(tokenizer_file))
     else:
@@ -106,6 +106,10 @@ def get_ds(config):
 
     train_ds = BilingualDataset(train_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
     val_ds = BilingualDataset(val_ds_raw, tokenizer_src, tokenizer_tgt, config["seq_len"], config["lang_src"], config["lang_tgt"])
+    
+    if config["clean_data"]:
+        train_ds.clean_data()
+        val_ds.clean_data()
     
     max_len_src = 0
     max_len_tgt = 0
@@ -182,7 +186,10 @@ def train_model(config):
 
     initial_epoch = 0
     global_step = 0
-
+    dtype = torch.float32
+    if config["use_mixed_precision"]:
+        dtype=torch.float16
+        
     if config["preload"]:
         model_filename = get_weight_file_path(config, config["preload"])
         print("Preloading model ", model_filename)
@@ -197,7 +204,6 @@ def train_model(config):
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1)
 
     for epoch in range(initial_epoch, config["num_epochs"]):
-        torch.cuda.empty_cache()
         model.train()
         batch_iterator = tqdm(train_loader, desc=f"Processing epoch: {epoch}")
         for batch in batch_iterator:
@@ -205,19 +211,20 @@ def train_model(config):
             tgt_input = batch["tgt_input"].to(device)
             src_mask = batch["src_mask"].to(device)
             tgt_mask = batch["tgt_mask"].to(device)
+            
+            with torch.autocast(device_type='cuda', dtype=dtype):
+                encoder_output = model.encode(src_input, src_mask)
+                decoder_output = model.decode(tgt_input, encoder_output, src_mask, tgt_mask)
+                proj_output = model.project(decoder_output)
 
-            encoder_output = model.encode(src_input, src_mask)
-            decoder_output = model.decode(tgt_input, encoder_output, src_mask, tgt_mask)
-            proj_output = model.project(decoder_output)
+                label = batch["label"].to(device)
+                loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
+                batch_iterator.set_postfix({f"Loss at {epoch}": {loss.item()}})
+                loss.backward()
 
-            label = batch["label"].to(device)
-            loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
-            batch_iterator.set_postfix({f"Loss at {epoch}": {loss.item()}})
-            loss.backward()
-
-            optimizer.step()
-            optimizer.zero_grad(set_to_none=True)
-            global_step+=1
+                optimizer.step()
+                optimizer.zero_grad(set_to_none=True)
+                global_step+=1
 
         run_validation(model, val_loader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, None, None)
 

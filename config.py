@@ -15,7 +15,7 @@ def get_config():
         "model_folder": "weights",
         "model_basename": "tmodel_",
         "preload": None,
-        "tokanizer_file": "tokenizer_{0}.json",
+        "tokenizer_file": "tokenizer_{0}.json",
         "experiment_name": "transformer_opt"
     }
 
