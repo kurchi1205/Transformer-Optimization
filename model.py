@@ -85,7 +85,7 @@ class Head(nn.Module):
         query = self.w_q(q)
         key = self.w_k(k)
         value = self.w_v(v)
-        weights = query @ key.transpose(-2, -1) / math.sqrt(self.d_model)
+        weights = query @ key.transpose(-2, -1) / math.sqrt(key.shape[-1])
         if mask is not None:
             weights = weights.masked_fill(mask==0, -1e9 if weights.dtype == torch.float32 else -1e4)
         weights = torch.softmax(weights, dim=-1)
