@@ -70,6 +70,30 @@ class ResidualConnection(nn.Module):
     def forward(self, x, sublayer):
         return x + self.dropout(sublayer(self.layer_norm(x)))
 
+
+class Head(nn.Module):
+    def __init__(self, d_k: int, d_model: int, dropout: float) -> None:
+        super().__init__()
+        self.d_k = d_k
+        self.w_q = nn.Linear(d_model, d_k, bias=False)
+        self.w_k = nn.Linear(d_model, d_k, bias=False)
+        self.w_v = nn.Linear(d_model, d_k, bias=False)
+        self.dropout = nn.Dropout(dropout)
+
+
+    def forward(self, q, k, v, mask):
+        query = self.w_q(q)
+        key = self.w_k(k)
+        value = self.w_v(v)
+        weights = query @ key.transpose(-2, -1) / math.sqrt(self.d_model)
+        if mask is not None:
+            weights = weights.masked_fill(mask==0, -1e9 if weights.dtype == torch.float32 else -1e4)
+        weights = torch.softmax(weights, dim=-1)
+        weights = self.dropout(weights)
+        scores = weights @ value    
+        return scores
+    
+
 class MultiHeadAttentionBlock(nn.Module):
     def __init__(self, d_model, h, dropout) -> None:
         super().__init__()
@@ -79,39 +103,27 @@ class MultiHeadAttentionBlock(nn.Module):
 
         assert d_model % h == 0
 
-        self.w_q = nn.Linear(d_model, d_model, bias=False)
-        self.w_k = nn.Linear(d_model, d_model, bias=False)
-        self.w_v = nn.Linear(d_model, d_model, bias=False)
+        self.head = nn.ModuleList([Head(self.d_k, d_model, dropout) for _ in range(h)])
         self.w_o = nn.Linear(d_model, d_model, bias=False)
-
         self.dropout = nn.Dropout(dropout)
     
-    @staticmethod
-    def attention(query, key, value, mask=None, dropout=None):
-        d_k = query.shape[-1]
-        attention_scores = query @ key.transpose(-2, -1) / math.sqrt(d_k)
-        attention_scores = attention_scores.transpose(0, 1)
-        if mask is not None:
-            attention_scores = attention_scores.masked_fill(mask==0, -1e9 if attention_scores.dtype == torch.float32 else -1e4)
-        attention_scores = attention_scores.transpose(0, 1)
-        attention_probs = torch.softmax(attention_scores, dim=-1)
-        if dropout is not None:
-            attention_probs = dropout(attention_probs)
+    # @staticmethod
+    # def attention(query, key, value, mask=None, dropout=None):
+    #     d_k = query.shape[-1]
+    #     attention_scores = query @ key.transpose(-2, -1) / math.sqrt(d_k)
+    #     attention_scores = attention_scores.transpose(0, 1)
+    #     if mask is not None:
+    #         attention_scores = attention_scores.masked_fill(mask==0, -1e9 if attention_scores.dtype == torch.float32 else -1e4)
+    #     attention_scores = attention_scores.transpose(0, 1)
+    #     attention_probs = torch.softmax(attention_scores, dim=-1)
+    #     if dropout is not None:
+    #         attention_probs = dropout(attention_probs)
         
-        return attention_probs @ value, attention_probs
+    #     return attention_probs @ value, attention_probs
 
     def forward(self, q, k, v, mask):
-        query = self.w_q(q)
-        key = self.w_k(k)
-        value = self.w_v(v)
-
-        query = query.view(query.shape[0], query.shape[1], self.h, self.d_k).transpose(1, 2)
-        key = key.view(key.shape[0], key.shape[1], self.h, self.d_k).transpose(1, 2)
-        value = value.view(value.shape[0], value.shape[1], self.h, self.d_k).transpose(1, 2)
-
-        x, self.attention_probs = MultiHeadAttentionBlock.attention(query, key, value, mask, self.dropout)
-
-        x = x.transpose(1, 2).contiguous().view(x.shape[0], -1, self.d_model)
+        x = torch.cat([self.head[i](q, k, v, mask) for i in range(self.h)], dim=-1)
+        x = self.dropout(x)
         return self.w_o(x)
     
 
