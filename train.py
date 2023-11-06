@@ -1,4 +1,4 @@
-from model_v2 import build_transformer
+from model_v3 import build_transformer
 from dataset import BilingualDataset, causal_mask
 from config import get_config, get_weight_file_path
 
@@ -131,7 +131,7 @@ def get_ds(config):
 
 
 def get_model(config, vocab_src_len, vocab_tgt_len):
-    model = build_transformer(vocab_src_len, vocab_tgt_len, config["seq_len"], config["seq_len"], config["d_model"], config["N"], config["head"], config["dropout"])
+    model = build_transformer(config["seq_len"], config["seq_len"], config["d_model"], config["N"], config["head"], config["dropout"])
     return model
 
 
@@ -216,18 +216,14 @@ def train_model(config):
             src_mask = batch["src_mask"].to(device)
             tgt_mask = batch["tgt_mask"].to(device)
             # with torch.cuda.amp.autocast():
-            encoder_output = model.encode(src_input, src_mask)
-            print(encoder_output)
-            decoder_output = model.decode(tgt_input, encoder_output, src_mask, tgt_mask)
-            proj_output = model.project(decoder_output, mode="train")
-
+            logits = model(src_input, tgt_input, src_mask, tgt_mask)
             label = batch["label"].to(device)
-            loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
+            loss = loss_fn(logits.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
             
             # scaler.scale(loss).backward()
             batch_iterator.set_postfix({f"Loss at {epoch}": {loss.item()}})
             
-            torch.nn.utils.clip_grad_value_(model.parameters(), 1.)
+            # torch.nn.utils.clip_grad_value_(model.parameters(), 1.)
 
             
             # scaler.step(optimizer)
@@ -237,7 +233,7 @@ def train_model(config):
             optimizer.step()
             global_step+=1
 
-        run_validation(model, val_loader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, None, None)
+        # run_validation(model, val_loader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, None, None)
 
         model_filename = get_weight_file_path(config, str(epoch))
         torch.save({
