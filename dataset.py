@@ -25,6 +25,7 @@ class BilingualDataset(Dataset):
     
      
     def clean_data(self):
+        print(len(self.ds))
         for i in range(len(self.ds)):
             src_tgt_pair = self.ds[i]
             src = src_tgt_pair["translation"][self.src_lang]
@@ -35,9 +36,12 @@ class BilingualDataset(Dataset):
 
             if (len(src_tokens) > 150):
                 self.idx.remove(i)
+            elif (len(tgt_tokens) > 200):
+                self.idx.remove(i)
             elif (len(tgt_tokens) - len(src_tokens) > 10):
                 self.idx.remove(i)
         self.ds = Subset(self.ds, self.idx)
+        print(len(self.ds))
     
     
     def __getitem__(self, idx):
@@ -90,7 +94,7 @@ class BilingualDataset(Dataset):
             "src_input": src_input,
             "tgt_input": tgt_input,
             "src_mask": (src_input != self.pad_token).unsqueeze(0).unsqueeze(0).int(),
-            "tgt_mask": (tgt_input != self.pad_token).unsqueeze(0) & (causal_mask(tgt_input.size(0)).int()),
+            "tgt_mask": (tgt_input != self.pad_token).unsqueeze(0).unsqueeze(0).int() & causal_mask(tgt_input.size(0)).int(),
             "label": label,
             "src_text": src,
             "tgt_text": tgt,
@@ -102,3 +106,6 @@ def causal_mask(size):
     mask = torch.triu(torch.ones(1, size, size), diagonal=1).type(torch.int64)
     return mask
 
+
+if __name__=="__main__":
+    print(causal_mask(4))

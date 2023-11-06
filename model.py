@@ -82,13 +82,20 @@ class Head(nn.Module):
 
 
     def forward(self, q, k, v, mask):
+        # print("Query: ", q)
+        # print("Key: ", k)
+        # print("Value: ", v)
         query = self.w_q(q)
         key = self.w_k(k)
         value = self.w_v(v)
+        
         weights = query @ key.transpose(-2, -1) / math.sqrt(key.shape[-1])
+        masked_fill_val = -torch.finfo(weights.dtype).max
+        # print(masked_fill_val)
         if mask is not None:
-            weights = weights.masked_fill(mask==0, -1e9 if weights.dtype == torch.float32 else -1e4)
-        weights = torch.softmax(weights, dim=-1)
+            weights = weights.masked_fill(mask==0, masked_fill_val)
+        weights = torch.nn.functional.softmax(weights, dim=-1)
+        # print("After softmax: ", weights)
         weights = self.dropout(weights)
         scores = weights @ value    
         return scores
@@ -181,8 +188,11 @@ class ProjectionLayer(nn.Module):
         super().__init__()
         self.proj = nn.Linear(d_model, vocab_size, bias=False)
 
-    def forward(self, x):
-        return torch.log_softmax(self.proj(x), dim=-1)
+    def forward(self, x, mode):
+        if mode=="train":
+            return self.proj(x)
+        else:
+            return torch.log_softmax(self.proj(x), dim=-1)
     
 
 class Transformer(nn.Module):
@@ -202,8 +212,8 @@ class Transformer(nn.Module):
     def decode(self, tgt, encoder_output, src_mask, tgt_mask):
         return self.decoder(self.tgt_pos(self.tgt_emb(tgt)), src_mask, tgt_mask, encoder_output)
     
-    def project(self, x):
-        return self.proj(x)
+    def project(self, x, mode="test"):
+        return self.proj(x, mode)
     
 
 def build_transformer(src_vocab_size, tgt_vocab_size, src_seq_len, tgt_seq_len, d_model, N, head, dropout, d_ff):

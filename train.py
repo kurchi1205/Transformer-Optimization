@@ -1,4 +1,4 @@
-from model import build_transformer
+from model_v2 import build_transformer
 from dataset import BilingualDataset, causal_mask
 from config import get_config, get_weight_file_path
 
@@ -35,7 +35,7 @@ def greedy_decode(model, source, source_mask, tokenizer_src, tokenizer_tgt, max_
         if (decoder_input.size(1) == max_len):
             break
 
-        decoder_output = model.decode(decoder_input, source_mask, causal_mask(decoder_input.size(1)).type_as(source_mask).to(device), encoder_output)
+        decoder_output = model.decode(decoder_input, encoder_output, source_mask, causal_mask(decoder_input.size(1)).type_as(source_mask).to(device))
         prob = model.project(decoder_output[:, -1])
         _, next_token = torch.max(prob, dim=-1)
         decoder_input = torch.cat([decoder_input, torch.empty(1, 1).type_as(source).fill_(next_token.item())], dim=1)
@@ -131,7 +131,7 @@ def get_ds(config):
 
 
 def get_model(config, vocab_src_len, vocab_tgt_len):
-    model = build_transformer(vocab_src_len, vocab_tgt_len, config["seq_len"], config["seq_len"], config["d_model"], config["N"], config["head"], config["dropout"], config["d_ff"])
+    model = build_transformer(vocab_src_len, vocab_tgt_len, config["seq_len"], config["seq_len"], config["d_model"], config["N"], config["head"], config["dropout"])
     return model
 
 
@@ -148,7 +148,8 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             console_width = int(console_width)
     except:
         console_width = 80
-
+        
+    # scaler = GradScaler()
     with torch.no_grad():
         for batch in validation_ds:
             count += 1
@@ -164,6 +165,8 @@ def run_validation(model, validation_ds, tokenizer_src, tokenizer_tgt, max_len, 
             source_texts.append(source_text)
             expected.append(target_text)
             predicted.append(model_out_text)
+            if count == 100:
+                break
     metric = torchmetrics.CharErrorRate()
     cer = metric(predicted, expected)
 
@@ -186,9 +189,9 @@ def train_model(config):
 
     initial_epoch = 0
     global_step = 0
-    dtype = torch.float32
-    if config["use_mixed_precision"]:
-        dtype=torch.float16
+    # dtype = torch.float32
+    # if config["use_mixed_precision"]:
+    #     dtype=torch.float16
         
     if config["preload"]:
         model_filename = get_weight_file_path(config, config["preload"])
@@ -203,6 +206,7 @@ def train_model(config):
     model = model.to(device)
     loss_fn = nn.CrossEntropyLoss(ignore_index=tokenizer_src.token_to_id('[PAD]'), label_smoothing=0.1)
 
+    # scaler = torch.cuda.amp.GradScaler()
     for epoch in range(initial_epoch, config["num_epochs"]):
         model.train()
         batch_iterator = tqdm(train_loader, desc=f"Processing epoch: {epoch}")
@@ -211,20 +215,27 @@ def train_model(config):
             tgt_input = batch["tgt_input"].to(device)
             src_mask = batch["src_mask"].to(device)
             tgt_mask = batch["tgt_mask"].to(device)
+            # with torch.cuda.amp.autocast():
+            encoder_output = model.encode(src_input, src_mask)
+            print(encoder_output)
+            decoder_output = model.decode(tgt_input, encoder_output, src_mask, tgt_mask)
+            proj_output = model.project(decoder_output, mode="train")
+
+            label = batch["label"].to(device)
+            loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
             
-            with torch.autocast(device_type='cuda', dtype=dtype):
-                encoder_output = model.encode(src_input, src_mask)
-                decoder_output = model.decode(tgt_input, encoder_output, src_mask, tgt_mask)
-                proj_output = model.project(decoder_output)
+            # scaler.scale(loss).backward()
+            batch_iterator.set_postfix({f"Loss at {epoch}": {loss.item()}})
+            
+            torch.nn.utils.clip_grad_value_(model.parameters(), 1.)
 
-                label = batch["label"].to(device)
-                loss = loss_fn(proj_output.view(-1, tokenizer_tgt.get_vocab_size()), label.view(-1, ))
-                batch_iterator.set_postfix({f"Loss at {epoch}": {loss.item()}})
-                loss.backward()
-
-                optimizer.step()
-                optimizer.zero_grad(set_to_none=True)
-                global_step+=1
+            
+            # scaler.step(optimizer)
+            # scaler.update()
+            optimizer.zero_grad(set_to_none=True)
+            loss.backward()
+            optimizer.step()
+            global_step+=1
 
         run_validation(model, val_loader, tokenizer_src, tokenizer_tgt, config['seq_len'], device, None, None)
 
